@@ -52,7 +52,3 @@ table, th, td {
   display: flex;
   flex-direction: column;
 }
-
-.input {
-  color: black;
-}

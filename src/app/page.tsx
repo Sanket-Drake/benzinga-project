@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getItem } from './service/storageService';
+import { getItem, setItem } from './service/storageService';
 
 // Define types for stock, portfolio item, and transaction
 type Stock = {
@@ -38,6 +38,11 @@ const App: React.FC = () => {
     const currentTransactions: Transaction[] = JSON.parse(getItem('transactions')) || [];
     setPortfolio(currentPortfolio)
     setTransactions(currentTransactions)
+    
+    fetchCurrentPrice(currentPortfolio);
+  }, []);
+
+  function fetchCurrentPrice(currentPortfolio: PortfolioItem[]) {
     const symbols: any[] = [];
     currentPortfolio?.forEach((element: PortfolioItem) => {
       symbols.push(element.symbol)
@@ -45,10 +50,10 @@ const App: React.FC = () => {
     fetch(`https://api.benzinga.com/api/v1/quoteDelayed?token=0beae1e20cfd42c3b17b65e2a54c9d7f&symbols=${symbols}`)
       .then(response => response.json())
       .then((data: any) => {
-        console.log(data.quotes);
+        // console.log(data.quotes);
         const stockList: React.SetStateAction<Stock[]> = [];
         data.quotes?.forEach((element: any) => {
-          stockList.push({symbol: element.security.symbol, price: element.quote.last})
+          stockList.push({ symbol: element.security.symbol, price: element.quote.last })
         });
         setStocksList(stockList);
         currentPortfolio.map((stock: any) => {
@@ -56,12 +61,13 @@ const App: React.FC = () => {
           stock.currentValue = stockList[index].price
         })
       });
-  }, []);
+  }
 
   // Function to handle buying stocks
   const buyStock = (stock: Stock, quantity: number): void => {
+
     // Calculate total cost based on current price fetched from the API
-    const totalCost: number = stock.price * quantity;
+    const totalCost: number = stock.price * parseInt(quantity);
 
     // Check if user has enough balance
     if (totalCost > walletBalance) {
@@ -71,24 +77,27 @@ const App: React.FC = () => {
 
     // Update wallet balance
     setWalletBalance(prevBalance => prevBalance - totalCost);
-
+    
     // Update portfolio
-    const existingStock = portfolio.find(item => item.symbol === stock.symbol);
-    if (existingStock) {
+    const existingStock = portfolio.findIndex(item => item.symbol === stock.symbol);
+    
+    if (existingStock>-1) {
       // If stock already exists in portfolio, update quantity and average cost
-      setPortfolio((prevPortfolio: any) => {
-        prevPortfolio.map((item: any) =>
-          item.symbol === stock.symbol
-            ? { ...item, quantity: item.quantity + quantity, avgCost: (item.avgCost * item.quantity + totalCost) / (item.quantity + quantity) }
-            : item
-        )
-        localStorage.setItem('portfolio', JSON.stringify(prevPortfolio));
-        return prevPortfolio;
-        }
-      );
+      const prevPortfolio = [...portfolio];
+      console.log((prevPortfolio[existingStock].avgCost * prevPortfolio[existingStock].quantity + totalCost) / (prevPortfolio[existingStock].quantity + quantity));
+      console.log(prevPortfolio[existingStock].avgCost, prevPortfolio[existingStock].quantity, totalCost);
+      
+      prevPortfolio[existingStock] = { ...prevPortfolio[existingStock], quantity: parseInt(prevPortfolio[existingStock].quantity) + parseInt(quantity), avgCost: (prevPortfolio[existingStock].avgCost * prevPortfolio[existingStock].quantity + totalCost) / (prevPortfolio[existingStock].quantity + quantity) }
+      fetchCurrentPrice(prevPortfolio)
+      setItem('portfolio', prevPortfolio);
+      setPortfolio(prevPortfolio);
     } else {
       // Add new stock to portfolio
-      setPortfolio(prevPortfolio => [...prevPortfolio, { symbol: stock.symbol, quantity, avgCost: totalCost }]);
+      setPortfolio(prevPortfolio => {
+        prevPortfolio = [...prevPortfolio, { symbol: stock.symbol, quantity, avgCost: totalCost }]
+        fetchCurrentPrice(prevPortfolio)
+        return prevPortfolio
+      });
     }
 
     // Update transactions
@@ -97,12 +106,12 @@ const App: React.FC = () => {
         ...prevTransactions,
         { type: 'buy', symbol: stock.symbol, quantity, price: stock.price, totalCost, totalGain: 0, timestamp: new Date() }
       ]
-      localStorage.setItem('transactions', JSON.stringify(newTransactions));
+      setItem('transactions', newTransactions);
       return newTransactions;
     });
 
     // Update local storage
-    localStorage.setItem('walletBalance', String(walletBalance - totalCost));
+    setItem('walletBalance', String(walletBalance - totalCost));
   };
 
   // Function to handle selling stocks
@@ -136,14 +145,14 @@ const App: React.FC = () => {
         ...prevTransactions,
         { type: 'sell', symbol: stock.symbol, quantity, price: sellPrice, totalCost, totalGain, timestamp: new Date() }
       ]
-      localStorage.setItem('transactions', JSON.stringify(newTransactions));
+      setItem('transactions', newTransactions);
       return newTransactions;
     });
 
     // Update local storage
-    localStorage.setItem('walletBalance', String(walletBalance + totalGain));
-    localStorage.setItem('portfolio', JSON.stringify(portfolio));
-    // localStorage.setItem('transactions', JSON.stringify(transactions));
+    setItem('walletBalance', String(walletBalance + totalGain));
+    setItem('portfolio', portfolio);
+    // setItem('transactions', transactions);
   };
 
   // Calculate total portfolio value
@@ -172,7 +181,7 @@ const App: React.FC = () => {
           <h2>Portfolio Value: ${calculatePortfolioValue()}</h2>
           <h2>Profit/Loss: ${calculateProfitLoss()}</h2>
         </div>
-        <StockList onBuy={buyStock} />
+        <StockList onBuy={(stock, buyQty) => buyStock(stock, buyQty)} />
         <Portfolio portfolio={portfolio} onSell={sellStock} />
         <TransactionHistory transactions={transactions} />
       </div>
@@ -193,36 +202,39 @@ const StockList: React.FC<StockListProps> = ({ onBuy }) => {
     setSymbol(event.target.value);
   }
 
-  function setBuyQtyShare(event: { target: { value: number; }; }) {
-    setBuyQty(event.target.value);
+  function setBuyQtyShare(event: { target: { value: number; }; }) {    
+    setBuyQty(parseInt(event.target.value));
   }
 
   // Fetch stock data from API (example using a mock API endpoint)
   useEffect(() => {
-    if(symbol!='') {fetch(`https://api.benzinga.com/api/v1/quoteDelayed?token=0beae1e20cfd42c3b17b65e2a54c9d7f&symbols=${symbol}`)
+    if (symbol != '') {
+      fetch(`https://api.benzinga.com/api/v1/quoteDelayed?token=0beae1e20cfd42c3b17b65e2a54c9d7f&symbols=${symbol}`)
       .then(response => response.json())
       .then((data: any) => {
-        console.log(data.quotes);
+        // console.log(data.quotes);
         const stockList: React.SetStateAction<Stock[]> = [];
         data.quotes?.forEach((element: any) => {
-          stockList.push({symbol: element.security.symbol, price: element.quote.last, name: element.security.name})
+          stockList.push({ symbol: element.security.symbol, price: element.quote.last, name: element.security.name })
         });
-        setStocks(stockList)});}
+        setStocks(stockList)
+      });
+    }
   }, [symbol]);
-  
+
   return (
     <div className="stock-list">
       <h2>Stock Search</h2>
       <input
-          value={symbol}
-          type="text"
-          className="input"
-          placeholder="Stock Symbol"
-          onChange={setStockSymbol}
-          name="symbol"
-        />
-      {stocks && stocks.length? <table>
-       <thead>
+        value={symbol}
+        type="text"
+        className="input"
+        placeholder="Stock Symbol"
+        onChange={setStockSymbol}
+        name="symbol"
+      />
+      {stocks && stocks.length ? <table>
+        <thead>
           <tr>
             <th>Symbol</th>
             <th>Name</th>
@@ -245,8 +257,8 @@ const StockList: React.FC<StockListProps> = ({ onBuy }) => {
                   onChange={setBuyQtyShare}
                   name="buyQty"
                 />
-                <span>{stock.price*buyQty}</span>
-                <button className="primaryButton" onClick={() =>{ onBuy(stock, buyQty);setBuyQty(1);}}>Buy</button>  
+                <span>{stock.price * buyQty}</span>
+                <button className="primaryButton" onClick={() => { onBuy(stock, buyQty); setBuyQty(1); }}>Buy</button>
               </td>
             </tr>
           ))}
@@ -280,18 +292,21 @@ const Portfolio: React.FC<PortfolioProps> = ({ portfolio, onSell }) => {
             <th>Purchase Total</th>
             <th>Current Price</th>
             <th>Current Total</th>
+            <th>Profit/Loss</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
-          {portfolio.map(stock => (
+          {portfolio.map(stock => {
+            return (
             <tr key={stock.symbol}>
               <td>{stock.symbol}</td>
               <td> {stock.quantity}</td>
-              <td>{stock.avgCost/stock.quantity}</td>
-              <td>  {stock.avgCost}</td>
+              <td>{(stock.avgCost / stock.quantity).toFixed(2)}</td>
+              <td>  {stock.avgCost.toFixed(2)}</td>
               <td>{stock.currentValue}</td>
-              <td>  {stock.quantity * stock.currentValue}</td>
+              <td>  {(stock.quantity * stock.currentValue).toFixed(2)}</td>
+              <td className={`${stock.quantity * stock.currentValue - stock.avgCost > 0 ? 'green' : 'red'}`}>  {(stock.quantity * stock.currentValue - stock.avgCost).toFixed(2)}</td>
               <td>
                 <input
                   value={sellQty}
@@ -304,7 +319,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ portfolio, onSell }) => {
                 <button onClick={() => onSell(stock, sellQty)}>Sell</button>
               </td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     </div>
@@ -333,7 +348,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
         <tbody>
           {transactions.map((transaction, index) => (
             <tr key={index}>
-              <td className={`${transaction.type === 'buy' ? 'blue':'red'}`}> {transaction.type === 'buy' ? 'Bought ' : 'Sold '}</td>
+              <td className={`${transaction.type === 'buy' ? 'blue' : 'red'}`}> {transaction.type === 'buy' ? 'Bought ' : 'Sold '}</td>
               <td> {transaction.symbol} </td>
               <td> {transaction.quantity} </td>
               <td> {transaction.price} </td>
@@ -343,7 +358,7 @@ const TransactionHistory: React.FC<TransactionHistoryProps> = ({ transactions })
           ))}
         </tbody>
       </table>
-      
+
     </div>
   );
 };
@@ -360,7 +375,7 @@ const Modal: React.FC<ModalProps> = ({ type }) => {
           <h2>Transaction History</h2>
         </div>
       );
-    }
+  }
 };
 
 export default App;

@@ -34,6 +34,14 @@ body {
   color: crimson;
 }
 
+.green {
+  color:forestgreen;
+}
+
+.input {
+  color: black;
+}
+
 h2 {
   font-weight: bold;
   font-size: 24px;
