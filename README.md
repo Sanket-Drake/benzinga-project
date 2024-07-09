@@ -1,9 +1,9 @@
 Demo Link - [https://benzinga-project-61wfs0guf-sanket-nainanis-projects.vercel.app](https://benzinga-project-61wfs0guf-sanket-nainanis-projects.vercel.app)
 
 Data Stored to Local Storage in the following table structure
-- Departments - name, id
-- Teams - name, id, department 
-- Employees - name, id, phone, email, team, department, lead
+- portfolio
+- transaction 
+- wallet
 
 This is a [Next.js](https://nextjs.org/) project.
 
