@@ -50,10 +50,10 @@ const App: React.FC = () => {
     fetch(`https://api.benzinga.com/api/v1/quoteDelayed?token=0beae1e20cfd42c3b17b65e2a54c9d7f&symbols=${symbols}`)
       .then(response => response.json())
       .then((data: any) => {
-        // console.log(data.quotes);
-        const stockList: React.SetStateAction<Stock[]> = [];
+        console.log(data.quotes);
+        const stockList: Stock[] = [];
         data.quotes?.forEach((element: any) => {
-          stockList.push({ symbol: element.security.symbol, price: element.quote.last })
+          stockList.push({ symbol: element.security.symbol, price: element.quote.last, name: element.security.name })
         });
         setStocksList(stockList);
         currentPortfolio.map((stock: any) => {
@@ -83,10 +83,8 @@ const App: React.FC = () => {
     
     if (existingStock>-1) {
       // If stock already exists in portfolio, update quantity and average cost
+      // add logic for purchase price calculation
       const prevPortfolio = [...portfolio];
-      console.log((prevPortfolio[existingStock].avgCost * prevPortfolio[existingStock].quantity + totalCost) / (prevPortfolio[existingStock].quantity + quantity));
-      console.log(prevPortfolio[existingStock].avgCost, prevPortfolio[existingStock].quantity, totalCost);
-      
       prevPortfolio[existingStock] = { ...prevPortfolio[existingStock], quantity: parseInt(prevPortfolio[existingStock].quantity) + parseInt(quantity), avgCost: (prevPortfolio[existingStock].avgCost * prevPortfolio[existingStock].quantity + totalCost) / (prevPortfolio[existingStock].quantity + quantity) }
       fetchCurrentPrice(prevPortfolio)
       setItem('portfolio', prevPortfolio);
