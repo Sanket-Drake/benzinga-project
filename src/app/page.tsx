@@ -36,7 +36,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const currentPortfolio: PortfolioItem[] = JSON.parse(getItem('portfolio')) || [];
     const currentTransactions: Transaction[] = JSON.parse(getItem('transactions')) || [];
-    const currentWallet = JSON.parse(getItem('walletBalance')) || [];
+    let currentWallet = JSON.parse(getItem('walletBalance'));
+    if(!currentWallet.length) {
+      currentWallet = 100000;
+    }
     setPortfolio(currentPortfolio)
     setTransactions(currentTransactions)
     setWalletBalance(parseInt(currentWallet))
@@ -92,7 +95,7 @@ const App: React.FC = () => {
     } else {
       // Add new stock to portfolio
       const prevPortfolio = [...portfolio];
-      prevPortfolio.push({ symbol: stock.symbol, quantity, avgCost: totalCost, currentValue: 0 })
+      prevPortfolio.push({ symbol: stock.symbol, quantity, avgCost: stock.price, currentValue: 0 })
       fetchCurrentPrice(prevPortfolio)
       setItem('portfolio', prevPortfolio);
       setPortfolio(prevPortfolio);
