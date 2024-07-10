@@ -12,7 +12,7 @@ type Stock = {
 
 type PortfolioItem = {
   symbol: string;
-  quantity: number;
+  quantity: any;
   avgCost: number;
   currentValue: number;
 };
@@ -36,9 +36,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const currentPortfolio: PortfolioItem[] = JSON.parse(getItem('portfolio')) || [];
     const currentTransactions: Transaction[] = JSON.parse(getItem('transactions')) || [];
+    const currentWallet = JSON.parse(getItem('walletBalance')) || [];
     setPortfolio(currentPortfolio)
     setTransactions(currentTransactions)
-    
+    setWalletBalance(parseInt(currentWallet))
     fetchCurrentPrice(currentPortfolio);
   }, []);
 
@@ -50,7 +51,7 @@ const App: React.FC = () => {
     fetch(`https://api.benzinga.com/api/v1/quoteDelayed?token=0beae1e20cfd42c3b17b65e2a54c9d7f&symbols=${symbols}`)
       .then(response => response.json())
       .then((data: any) => {
-        console.log(data.quotes);
+        // console.log(data.quotes);
         const stockList: Stock[] = [];
         data.quotes?.forEach((element: any) => {
           stockList.push({ symbol: element.security.symbol, price: element.quote.last, name: element.security.name })
@@ -64,7 +65,7 @@ const App: React.FC = () => {
   }
 
   // Function to handle buying stocks
-  const buyStock = (stock: Stock, quantity: number): void => {
+  const buyStock = (stock: Stock, quantity: any): void => {
 
     // Calculate total cost based on current price fetched from the API
     const totalCost: number = stock.price * parseInt(quantity);
@@ -83,19 +84,19 @@ const App: React.FC = () => {
     
     if (existingStock>-1) {
       // If stock already exists in portfolio, update quantity and average cost
-      // add logic for purchase price calculation
-      const prevPortfolio = [...portfolio];
-      prevPortfolio[existingStock] = { ...prevPortfolio[existingStock], quantity: parseInt(prevPortfolio[existingStock].quantity) + parseInt(quantity), avgCost: (prevPortfolio[existingStock].avgCost * prevPortfolio[existingStock].quantity + totalCost) / (prevPortfolio[existingStock].quantity + quantity) }
+      const prevPortfolio: PortfolioItem[] = [...portfolio];
+      prevPortfolio[existingStock] = { ...prevPortfolio[existingStock], quantity: parseInt(prevPortfolio[existingStock].quantity) + parseInt(quantity), avgCost: ((prevPortfolio[existingStock].avgCost * prevPortfolio[existingStock].quantity) + totalCost) / (prevPortfolio[existingStock].quantity + quantity) }
       fetchCurrentPrice(prevPortfolio)
       setItem('portfolio', prevPortfolio);
       setPortfolio(prevPortfolio);
     } else {
       // Add new stock to portfolio
-      setPortfolio(prevPortfolio => {
-        prevPortfolio = [...prevPortfolio, { symbol: stock.symbol, quantity, avgCost: totalCost }]
-        fetchCurrentPrice(prevPortfolio)
-        return prevPortfolio
-      });
+      const prevPortfolio = [...portfolio];
+      prevPortfolio.push({ symbol: stock.symbol, quantity, avgCost: totalCost, currentValue: 0 })
+      fetchCurrentPrice(prevPortfolio)
+      setItem('portfolio', prevPortfolio);
+      setPortfolio(prevPortfolio);
+
     }
 
     // Update transactions
@@ -167,6 +168,8 @@ const App: React.FC = () => {
   // Calculate overall profit/loss
   const calculateProfitLoss = (): number => {
     const portfolioValue: number = calculatePortfolioValue();
+    console.log(portfolioValue, walletBalance);
+    
     return portfolioValue + walletBalance - 100000; // Starting balance is $100,000
   };
 
@@ -175,11 +178,11 @@ const App: React.FC = () => {
       <h1>Stock Market Trader</h1>
       <div className="container">
         <div className="wallet">
-          <h2>Wallet Balance: ${walletBalance}</h2>
-          <h2>Portfolio Value: ${calculatePortfolioValue()}</h2>
-          <h2>Profit/Loss: ${calculateProfitLoss()}</h2>
+          <h2>Wallet Balance: ${walletBalance.toFixed(2)}</h2>
+          <h2>Portfolio Value: ${calculatePortfolioValue().toFixed(2)}</h2>
+          <h2>Profit/Loss: ${calculateProfitLoss().toFixed(2)}</h2>
         </div>
-        <StockList onBuy={(stock, buyQty) => buyStock(stock, buyQty)} />
+        <StockList onBuy={(stock, buyQty: number) => buyStock(stock, buyQty)} />
         <Portfolio portfolio={portfolio} onSell={sellStock} />
         <TransactionHistory transactions={transactions} />
       </div>
@@ -200,7 +203,7 @@ const StockList: React.FC<StockListProps> = ({ onBuy }) => {
     setSymbol(event.target.value);
   }
 
-  function setBuyQtyShare(event: { target: { value: number; }; }) {    
+  function setBuyQtyShare(event: { target: { value: string; }; }) {    
     setBuyQty(parseInt(event.target.value));
   }
 
@@ -274,8 +277,8 @@ type PortfolioProps = {
 const Portfolio: React.FC<PortfolioProps> = ({ portfolio, onSell }) => {
   const [sellQty, setSellQty] = useState<number>(1);
 
-  function setSetQtyShare(event: { target: { value: number; }; }) {
-    setSellQty(event.target.value);
+  function setSetQtyShare(event: { target: { value: string; }; }) {
+    setSellQty(parseInt(event.target.value));
   }
 
   return (
@@ -300,11 +303,11 @@ const Portfolio: React.FC<PortfolioProps> = ({ portfolio, onSell }) => {
             <tr key={stock.symbol}>
               <td>{stock.symbol}</td>
               <td> {stock.quantity}</td>
-              <td>{(stock.avgCost / stock.quantity).toFixed(2)}</td>
               <td>  {stock.avgCost.toFixed(2)}</td>
+              <td>{(stock.avgCost*stock.quantity).toFixed(2)}</td>
               <td>{stock.currentValue}</td>
               <td>  {(stock.quantity * stock.currentValue).toFixed(2)}</td>
-              <td className={`${stock.quantity * stock.currentValue - stock.avgCost > 0 ? 'green' : 'red'}`}>  {(stock.quantity * stock.currentValue - stock.avgCost).toFixed(2)}</td>
+              <td className={`${stock.quantity * (stock.currentValue - stock.avgCost) > 0 ? 'green' : 'red'}`}>  {(stock.quantity * (stock.currentValue - stock.avgCost)).toFixed(2)}</td>
               <td>
                 <input
                   value={sellQty}
